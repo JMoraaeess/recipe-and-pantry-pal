@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BottomNav } from "@/components/BottomNav";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import Home from "./pages/Home";
 import Recipes from "./pages/Recipes";
 import AddRecipe from "./pages/AddRecipe";
 import Pantry from "./pages/Pantry";
@@ -38,7 +39,8 @@ const App = () => (
           <div className="max-w-lg mx-auto">
             <Routes>
               <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
-              <Route path="/" element={<ProtectedRoute><Recipes /></ProtectedRoute>} />
+              <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+              <Route path="/recipes" element={<ProtectedRoute><Recipes /></ProtectedRoute>} />
               <Route path="/add" element={<ProtectedRoute><AddRecipe /></ProtectedRoute>} />
               <Route path="/pantry" element={<ProtectedRoute><Pantry /></ProtectedRoute>} />
               <Route path="/recipe/:id" element={<ProtectedRoute><RecipeDetail /></ProtectedRoute>} />
