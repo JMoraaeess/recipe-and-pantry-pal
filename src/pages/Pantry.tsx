@@ -7,6 +7,7 @@ import { X, Apple, Plus, ArrowLeft, Calendar, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, isBefore, startOfDay, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { IngredientIcon } from "@/components/IngredientIcon";
 
 export default function Pantry() {
   const { toast } = useToast();
@@ -89,7 +90,7 @@ export default function Pantry() {
                 return (
                   <div key={item.id} className="group flex items-center gap-3 bg-card border border-border rounded-2xl px-4 py-4 hover:shadow-sm transition-all">
                     <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
-                      <Apple className="h-5 w-5 text-primary/60" />
+                      <IngredientIcon name={item.name} className="text-2xl" />
                     </div>
                     
                     <div className="flex-1 min-w-0">

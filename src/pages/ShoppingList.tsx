@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { getRecipes, getPantry, checkIngredients, type Recipe, type PantryItem } from "@/lib/supabaseStore";
+import { getRecipes, getPantry, checkIngredients, addPantryItem, type Recipe, type PantryItem } from "@/lib/supabaseStore";
 import { ShoppingCart, CheckCircle2, User, Plus, Trash2, Check, X, Search, ChevronRight, ChefHat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { IngredientIcon } from "@/components/IngredientIcon";
 import {
   Dialog,
   DialogContent,
@@ -22,12 +23,20 @@ export default function ShoppingList() {
   const [searchTerm, setSearchTerm] = useState("");
   
   // Custom list state
-  const [customItems, setCustomItems] = useState<{ id: string; name: string; quantity: string; checked: boolean }[]>(() => {
+  const [customItems, setCustomItems] = useState<{ id: string; name: string; quantity: string; expiryDate?: string; checked: boolean }[]>(() => {
     const saved = localStorage.getItem("custom_shopping_list");
     return saved ? JSON.parse(saved) : [];
   });
-  const [newItemName, setNewItemName] = useState("");
-  const [newItemQty, setNewItemQty] = useState("");
+  const [isAddManualOpen, setIsAddManualOpen] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualQty, setManualQty] = useState("");
+  const [manualExpiry, setManualExpiry] = useState("");
+
+  // Dialog state for adding to pantry
+  const [addingItem, setAddingItem] = useState<{ id: string; name: string; quantity: string } | null>(null);
+  const [purchaseQuantity, setPurchaseQuantity] = useState("");
+  const [purchaseExpiry, setPurchaseExpiry] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("custom_shopping_list", JSON.stringify(customItems));
@@ -100,22 +109,66 @@ export default function ShoppingList() {
     toast({ title: "Lista Atualizada", description: "Todos os itens das receitas reservadas foram adicionados." });
   };
 
-  const addManualItem = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newItemName.trim()) return;
-    
+  const handleSaveManualItem = () => {
+    if (!manualName.trim()) return;
     setCustomItems([
       ...customItems,
-      { id: crypto.randomUUID(), name: newItemName.trim(), quantity: newItemQty.trim(), checked: false }
+      { 
+        id: crypto.randomUUID(), 
+        name: manualName.trim(), 
+        quantity: manualQty.trim(), 
+        expiryDate: manualExpiry || undefined,
+        checked: false 
+      }
     ]);
-    setNewItemName("");
-    setNewItemQty("");
+    setManualName("");
+    setManualQty("");
+    setManualExpiry("");
+    setIsAddManualOpen(false);
   };
 
   const toggleCustomItem = (id: string) => {
     setCustomItems(customItems.map(item => 
       item.id === id ? { ...item, checked: !item.checked } : item
     ));
+  };
+
+  const handleItemClick = (item: { id: string; name: string; quantity: string; expiryDate?: string; checked: boolean }) => {
+    if (item.checked) {
+      toggleCustomItem(item.id);
+    } else {
+      setAddingItem(item);
+      setPurchaseQuantity(item.quantity || "");
+      setPurchaseExpiry(item.expiryDate || "");
+    }
+  };
+
+  const handleJustCheck = () => {
+    if (addingItem) {
+      toggleCustomItem(addingItem.id);
+      setAddingItem(null);
+    }
+  };
+
+  const handleAddToPantry = async () => {
+    if (!addingItem) return;
+    setIsSubmitting(true);
+    try {
+      await addPantryItem({
+        name: addingItem.name,
+        quantity: purchaseQuantity?.trim() || undefined,
+        expiryDate: purchaseExpiry || undefined
+      });
+      setCustomItems(customItems.map(item => 
+        item.id === addingItem.id ? { ...item, checked: true } : item
+      ));
+      toast({ title: "Despensa Atualizada", description: `${addingItem.name} adicionado com sucesso.` });
+      setAddingItem(null);
+    } catch (e) {
+      toast({ title: "Erro", description: "Não foi possível adicionar à despensa.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const removeCustomItem = (id: string) => {
@@ -201,24 +254,14 @@ export default function ShoppingList() {
       </header>
 
       <div className="px-5 space-y-6 mt-2">
-        {/* Manual Add Form */}
-        <form onSubmit={addManualItem} className="flex gap-2 bg-card p-3 rounded-2xl border border-border shadow-sm">
-          <Input 
-            value={newItemName}
-            onChange={(e) => setNewItemName(e.target.value)}
-            placeholder="O que comprar?" 
-            className="flex-1 h-10 bg-muted/20 border-none rounded-xl"
-          />
-          <Input 
-            value={newItemQty}
-            onChange={(e) => setNewItemQty(e.target.value)}
-            placeholder="Qtd." 
-            className="w-20 h-10 bg-muted/20 border-none rounded-xl text-center"
-          />
-          <Button type="submit" size="icon" className="h-10 w-10 shrink-0 rounded-xl shadow-sm">
-            <Plus className="h-5 w-5" />
-          </Button>
-        </form>
+        {/* Manual Add Button */}
+        <Button 
+          onClick={() => setIsAddManualOpen(true)}
+          className="w-full bg-card hover:bg-muted text-foreground border-border border shadow-sm rounded-2xl h-14 flex items-center justify-center gap-2 transition-colors"
+        >
+          <Plus className="h-5 w-5 text-primary" />
+          <span className="font-bold">Adicionar Item Manual</span>
+        </Button>
 
         {/* Checklist */}
         <div className="space-y-2">
@@ -254,17 +297,18 @@ export default function ShoppingList() {
                   }`}
                 >
                   <button 
-                    onClick={() => toggleCustomItem(item.id)}
+                    onClick={() => handleItemClick(item)}
                     className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-colors ${
                       item.checked ? "bg-green-500 border-green-500 text-white" : "border-muted-foreground/30"
                     }`}
                   >
                     {item.checked && <Check className="h-3.5 w-3.5" />}
                   </button>
-                  <div className="flex-1 min-w-0" onClick={() => toggleCustomItem(item.id)}>
+                  <div className="flex-1 min-w-0" onClick={() => handleItemClick(item)}>
                     <div className="flex items-center justify-between gap-2">
-                      <p className={`text-base font-bold truncate ${item.checked ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                        {item.name}
+                      <p className={`flex items-center gap-2 text-base font-bold truncate ${item.checked ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                        <IngredientIcon name={item.name} className="text-xl shrink-0 opacity-90" />
+                        <span className="truncate">{item.name}</span>
                       </p>
                       {item.quantity && (
                         <span className={`shrink-0 px-2 py-1 rounded-lg text-xs font-black border-2 ${
@@ -289,6 +333,99 @@ export default function ShoppingList() {
           )}
         </div>
       </div>
+
+      {/* Dialog to Add to Pantry */}
+      <Dialog open={!!addingItem} onOpenChange={(open) => !open && setAddingItem(null)}>
+        <DialogContent className="max-w-[90vw] w-[400px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Item Comprado</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Item</label>
+              <Input value={addingItem?.name || ""} disabled className="bg-muted text-foreground" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Quantidade para despensa</label>
+              <Input 
+                value={purchaseQuantity} 
+                onChange={(e) => setPurchaseQuantity(e.target.value)} 
+                placeholder="Ex: 500g, 2L, 1 unidade" 
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Validade (Opcional)</label>
+              <Input 
+                type="date"
+                value={purchaseExpiry} 
+                onChange={(e) => setPurchaseExpiry(e.target.value)} 
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Button 
+              onClick={handleAddToPantry} 
+              disabled={isSubmitting}
+              className="w-full bg-primary text-white font-bold rounded-xl h-11"
+            >
+              {isSubmitting ? "Adicionando..." : "Adicionar à Despensa"}
+            </Button>
+            <Button 
+              onClick={handleJustCheck} 
+              variant="outline"
+              disabled={isSubmitting}
+              className="w-full font-bold rounded-xl h-11"
+            >
+              Apenas Riscar da Lista
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog for Adding Manual Item */}
+      <Dialog open={isAddManualOpen} onOpenChange={setIsAddManualOpen}>
+        <DialogContent className="max-w-[90vw] w-[400px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Novo Item na Lista</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Nome do Produto <span className="text-destructive">*</span></label>
+              <Input 
+                value={manualName} 
+                onChange={(e) => setManualName(e.target.value)} 
+                placeholder="Ex: Arroz, Ovos, Detergente..." 
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Quantidade (Opcional)</label>
+              <Input 
+                value={manualQty} 
+                onChange={(e) => setManualQty(e.target.value)} 
+                placeholder="Ex: 5kg, 2L, 1 unidade" 
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Validade (Opcional)</label>
+              <Input 
+                type="date"
+                value={manualExpiry} 
+                onChange={(e) => setManualExpiry(e.target.value)} 
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Button 
+              onClick={handleSaveManualItem} 
+              disabled={!manualName.trim()} 
+              className="w-full bg-primary text-white font-bold rounded-xl h-11"
+            >
+              Adicionar à Lista
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

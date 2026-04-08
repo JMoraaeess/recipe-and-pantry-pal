@@ -13,11 +13,18 @@ import {
 import { ArrowLeft, Check, ShoppingCart, ExternalLink, BookmarkCheck, ChefHat, Undo2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { IngredientIcon } from "@/components/IngredientIcon";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   nova: { label: "Nova", color: "bg-muted text-muted-foreground" },
   reservada: { label: "Reservada", color: "bg-accent text-accent-foreground" },
   concluida: { label: "Concluída", color: "bg-secondary text-secondary-foreground" },
+};
+
+const getYoutubeVideoId = (url: string) => {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
 };
 
 export default function RecipeDetail() {
@@ -51,6 +58,7 @@ export default function RecipeDetail() {
   const haveCount = checked.filter((i) => i.sufficient).length;
   const needCount = checked.filter((i) => !i.sufficient).length;
   const statusInfo = STATUS_LABELS[recipe.status] || STATUS_LABELS.nova;
+  const youtubeId = recipe.source ? getYoutubeVideoId(recipe.source) : null;
 
   const handleReserve = async () => {
     const result = await reserveIngredients(recipe);
@@ -164,17 +172,49 @@ export default function RecipeDetail() {
           <h2 className="text-xl font-semibold mb-3">Ingredientes</h2>
           <ul className="space-y-2">
             {checked.map((ing, i) => (
-              <li key={i} className={`flex items-center gap-3 p-3 rounded-lg border ${ing.sufficient ? "bg-secondary/10 border-secondary/30" : "bg-card border-border"}`}>
-                {ing.sufficient ? <Check className="h-4 w-4 text-secondary shrink-0" /> : <ShoppingCart className="h-4 w-4 text-primary shrink-0" />}
-                <span className="flex-1 font-medium">{ing.name}</span>
-                <div className="text-right">
-                  {ing.quantity && <span className="text-muted-foreground text-sm">{ing.quantity}</span>}
-                  {ing.availableDisplay && <p className="text-xs text-muted-foreground">Disponível: {ing.availableDisplay}</p>}
+              <li key={i} className={`flex items-center gap-3 p-3 rounded-lg border ${ing.sufficient ? "bg-secondary/5 border-secondary/30" : "bg-card border-border"}`}>
+                <div className="flex items-center justify-center h-10 w-10 rounded-full bg-background border shadow-sm shrink-0">
+                  <IngredientIcon name={ing.name} className="text-xl" />
+                </div>
+                <div className="flex-1 font-medium flex flex-col min-w-0">
+                  <span className="truncate">{ing.name}</span>
+                  <div className="flex items-center gap-1.5 mt-0.5 text-[11px] uppercase tracking-wider">
+                    {ing.sufficient ? (
+                      <span className="text-secondary font-bold flex items-center gap-1">
+                        <Check className="h-3 w-3" /> Na Despensa
+                      </span>
+                    ) : (
+                      <span className="text-primary font-bold flex items-center gap-1">
+                        <ShoppingCart className="h-3 w-3" /> Comprar
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right shrink-0 pl-2">
+                  {ing.quantity && <span className="text-muted-foreground font-semibold text-sm block">{ing.quantity}</span>}
+                  {ing.availableDisplay && <span className="text-[10px] text-muted-foreground uppercase opacity-80">Disp: {ing.availableDisplay}</span>}
                 </div>
               </li>
             ))}
           </ul>
         </section>
+
+        {youtubeId && (
+          <section className="mb-6">
+            <h2 className="text-xl font-semibold mb-3">Vídeo Relacionado</h2>
+            <div className="aspect-video w-full rounded-xl overflow-hidden border border-border shadow-sm">
+              <iframe
+                width="100%"
+                height="100%"
+                src={`https://www.youtube.com/embed/${youtubeId}`}
+                title="YouTube video player"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              ></iframe>
+            </div>
+          </section>
+        )}
 
         {recipe.instructions && (
           <section>
