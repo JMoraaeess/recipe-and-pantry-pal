@@ -23,7 +23,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="flex items-center justify-between px-5 pt-8 pb-4">
         <div className="flex items-center gap-3">
@@ -44,7 +44,7 @@ export default function Home() {
               <User className="h-5 w-5 text-foreground" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48 bg-white border border-border">
+          <DropdownMenuContent align="end" className="w-48 bg-background border border-border">
             <DropdownMenuItem onClick={() => toast({ title: "Perfil", description: "Em breve!" })} className="gap-2 cursor-pointer">
               <User className="h-4 w-4" /> Perfil
             </DropdownMenuItem>
@@ -69,7 +69,7 @@ export default function Home() {
       <div className="flex-1 flex flex-col gap-4 px-5 pt-8 pb-24">
         <button
           onClick={() => navigate("/add")}
-          className="flex-1 min-h-[180px] rounded-2xl border-2 border-border bg-white hover:bg-muted/50 transition-all flex flex-col items-center justify-center gap-4 group"
+          className="flex-1 min-h-[180px] rounded-2xl border-2 border-border bg-background hover:bg-muted/50 transition-all flex flex-col items-center justify-center gap-4 group"
         >
           <div className="w-16 h-16 bg-foreground rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform">
             <UtensilsCrossed className="h-8 w-8 text-white" />
@@ -82,7 +82,7 @@ export default function Home() {
 
         <button
           onClick={() => navigate("/pantry")}
-          className="flex-1 min-h-[180px] rounded-2xl border-2 border-border bg-white hover:bg-muted/50 transition-all flex flex-col items-center justify-center gap-4 group"
+          className="flex-1 min-h-[180px] rounded-2xl border-2 border-border bg-background hover:bg-muted/50 transition-all flex flex-col items-center justify-center gap-4 group"
         >
           <div className="w-16 h-16 bg-foreground rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform">
             <ShoppingCart className="h-8 w-8 text-white" />
