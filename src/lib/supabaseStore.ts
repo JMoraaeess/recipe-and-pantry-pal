@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { type Tables, type Json } from "@/integrations/supabase/types";
 import { parseQuantity, toBase, subtractQuantity, formatQuantity, type ParsedQuantity } from "./units";
 
 export interface Ingredient {
@@ -16,6 +17,7 @@ export interface Recipe {
   instructions: string;
   source?: string;
   status: RecipeStatus;
+  isFavorite: boolean;
   createdAt: string;
 }
 
@@ -26,6 +28,24 @@ export interface PantryItem {
   numericValue?: number;
   unit?: string;
   reservedValue?: number;
+  expiryDate?: string;
+}
+
+// ---- Local Fallback Storage ----
+const LOCAL_STORAGE_KEY = "pantry_pal_local_data";
+
+interface LocalData {
+  favorites: Record<string, boolean>;
+  expiryDates: Record<string, string>;
+}
+
+function getLocalData(): LocalData {
+  const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+  return data ? JSON.parse(data) : { favorites: {}, expiryDates: {} };
+}
+
+function saveLocalData(data: LocalData) {
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
 }
 
 // ---- Recipes ----
@@ -37,14 +57,18 @@ export async function getRecipes(): Promise<Recipe[]> {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map((r: any) => ({
+  
+  const localData = getLocalData();
+  
+  return (data || []).map((r: Tables<"recipes">) => ({
     id: r.id,
     title: r.title,
     description: r.description || "",
-    ingredients: (r.ingredients as Ingredient[]) || [],
+    ingredients: (r.ingredients as unknown as Ingredient[]) || [],
     instructions: r.instructions || "",
     source: r.source || undefined,
-    status: r.status || "nova",
+    status: (r.status as RecipeStatus) || "nova",
+    isFavorite: r.is_favorite ?? localData.favorites[r.id] ?? false,
     createdAt: r.created_at,
   }));
 }
@@ -53,29 +77,75 @@ export async function saveRecipe(recipe: Omit<Recipe, "id">) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const { error } = await supabase.from("recipes").insert({
+  const { data, error } = await supabase.from("recipes").insert({
     user_id: user.id,
     title: recipe.title,
     description: recipe.description,
-    ingredients: recipe.ingredients as any,
+    ingredients: recipe.ingredients as unknown as Json,
     instructions: recipe.instructions,
     source: recipe.source || null,
     status: recipe.status,
-  });
-  if (error) throw error;
-}
-
-export async function updateRecipe(recipe: Recipe) {
-  const { error } = await supabase
-    .from("recipes")
-    .update({
+    is_favorite: recipe.isFavorite || false,
+  }).select().single();
+  
+  if (error) {
+    // Fallback if is_favorite column missing
+    const { error: error2, data: data2 } = await (supabase.from("recipes") as any).insert({
+      user_id: user.id,
       title: recipe.title,
       description: recipe.description,
-      ingredients: recipe.ingredients as any,
+      ingredients: recipe.ingredients as unknown as Json,
       instructions: recipe.instructions,
       source: recipe.source || null,
       status: recipe.status,
-    })
+    }).select().single();
+    
+    if (error2) throw error2;
+    
+    if (recipe.isFavorite && data2) {
+      const localData = getLocalData();
+      localData.favorites[data2.id] = true;
+      saveLocalData(localData);
+    }
+    return;
+  }
+}
+
+export async function updateRecipe(recipe: Partial<Recipe> & { id: string }) {
+  const updateData: any = {};
+  if (recipe.title !== undefined) updateData.title = recipe.title;
+  if (recipe.description !== undefined) updateData.description = recipe.description;
+  if (recipe.ingredients !== undefined) updateData.ingredients = recipe.ingredients as unknown as Json;
+  if (recipe.instructions !== undefined) updateData.instructions = recipe.instructions;
+  if (recipe.source !== undefined) updateData.source = recipe.source || null;
+  if (recipe.status !== undefined) updateData.status = recipe.status;
+  
+  // Try updating is_favorite
+  if (recipe.isFavorite !== undefined) {
+    const { error } = await supabase
+      .from("recipes")
+      .update({ ...updateData, is_favorite: recipe.isFavorite })
+      .eq("id", recipe.id);
+      
+    if (error) {
+      // Fallback: update others then save favorite locally
+      const { error: error2 } = await supabase
+        .from("recipes")
+        .update(updateData)
+        .eq("id", recipe.id);
+        
+      if (error2) throw error2;
+      
+      const localData = getLocalData();
+      localData.favorites[recipe.id] = recipe.isFavorite;
+      saveLocalData(localData);
+    }
+    return;
+  }
+
+  const { error } = await supabase
+    .from("recipes")
+    .update(updateData)
     .eq("id", recipe.id);
   if (error) throw error;
 }
@@ -88,6 +158,11 @@ export async function deleteRecipe(id: string) {
   }
   const { error } = await supabase.from("recipes").delete().eq("id", id);
   if (error) throw error;
+  
+  // Cleanup local data
+  const localData = getLocalData();
+  delete localData.favorites[id];
+  saveLocalData(localData);
 }
 
 // ---- Pantry ----
@@ -99,17 +174,21 @@ export async function getPantry(): Promise<PantryItem[]> {
     .order("created_at", { ascending: true });
 
   if (error) throw error;
-  return (data || []).map((p: any) => ({
+  
+  const localData = getLocalData();
+  
+  return (data || []).map((p: Tables<"pantry_items">) => ({
     id: p.id,
     name: p.name,
     quantity: p.quantity || undefined,
     numericValue: p.numeric_value ?? undefined,
     unit: p.unit || undefined,
     reservedValue: p.reserved_value ?? 0,
+    expiryDate: p.expiry_date ?? localData.expiryDates[p.id] ?? undefined,
   }));
 }
 
-export async function addPantryItem(item: { name: string; quantity?: string }) {
+export async function addPantryItem(item: { name: string; quantity?: string; expiryDate?: string }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
@@ -124,31 +203,80 @@ export async function addPantryItem(item: { name: string; quantity?: string }) {
     }
   }
 
-  const { error } = await supabase.from("pantry_items").insert({
+  const { data, error } = await supabase.from("pantry_items").insert({
     user_id: user.id,
     name: item.name,
     quantity: item.quantity || null,
     numeric_value: numericValue ?? null,
     unit: unit || null,
-  });
-  if (error) throw error;
+    expiry_date: item.expiryDate || null,
+  }).select().single();
+  
+  if (error) {
+    // Fallback if expiry_date missing
+    const { error: error2, data: data2 } = await (supabase.from("pantry_items") as any).insert({
+      user_id: user.id,
+      name: item.name,
+      quantity: item.quantity || null,
+      numeric_value: numericValue ?? null,
+      unit: unit || null,
+    }).select().single();
+    
+    if (error2) throw error2;
+    
+    if (item.expiryDate && data2) {
+      const localData = getLocalData();
+      localData.expiryDates[data2.id] = item.expiryDate;
+      saveLocalData(localData);
+    }
+    return;
+  }
 }
 
 export async function removePantryItem(id: string) {
   const { error } = await supabase.from("pantry_items").delete().eq("id", id);
   if (error) throw error;
+  
+  // Cleanup local data
+  const localData = getLocalData();
+  delete localData.expiryDates[id];
+  saveLocalData(localData);
 }
 
-export async function updatePantryItemDb(item: PantryItem) {
+export async function updatePantryItemDb(item: Partial<PantryItem> & { id: string }) {
+  const updateData: any = {};
+  if (item.name !== undefined) updateData.name = item.name;
+  if (item.quantity !== undefined) updateData.quantity = item.quantity || null;
+  if (item.numericValue !== undefined) updateData.numeric_value = item.numericValue ?? null;
+  if (item.unit !== undefined) updateData.unit = item.unit || null;
+  if (item.reservedValue !== undefined) updateData.reserved_value = item.reservedValue ?? 0;
+  
+  // Try updating expiry_date
+  if (item.expiryDate !== undefined) {
+    const { error } = await supabase
+      .from("pantry_items")
+      .update({ ...updateData, expiry_date: item.expiryDate })
+      .eq("id", item.id);
+      
+    if (error) {
+      // Fallback
+      const { error: error2 } = await supabase
+        .from("pantry_items")
+        .update(updateData)
+        .eq("id", item.id);
+        
+      if (error2) throw error2;
+      
+      const localData = getLocalData();
+      localData.expiryDates[item.id] = item.expiryDate;
+      saveLocalData(localData);
+    }
+    return;
+  }
+
   const { error } = await supabase
     .from("pantry_items")
-    .update({
-      name: item.name,
-      quantity: item.quantity || null,
-      numeric_value: item.numericValue ?? null,
-      unit: item.unit || null,
-      reserved_value: item.reservedValue ?? 0,
-    })
+    .update(updateData)
     .eq("id", item.id);
   if (error) throw error;
 }

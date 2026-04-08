@@ -1,9 +1,9 @@
-import { Home, BookOpen, Apple } from "lucide-react";
+import { Home, BookOpen, Apple, ShoppingCart } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
 const tabs = [
-  { to: "/", icon: Home, label: "Início" },
   { to: "/recipes", icon: BookOpen, label: "Receitas" },
+  { to: "/shopping-list", icon: ShoppingCart, label: "Compras" },
   { to: "/pantry", icon: Apple, label: "Despensa" },
 ];
 

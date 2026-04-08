@@ -46,6 +46,20 @@ const UNIT_ALIASES: Record<string, string> = {
   "colheres de café": "colher_cafe",
   "copo": "copo",
   "copos": "copo",
+  "pote": "pote",
+  "potes": "pote",
+  "caixa": "caixa",
+  "caixas": "caixa",
+  "lata": "lata",
+  "latas": "lata",
+  "pacote": "pacote",
+  "pacotes": "pacote",
+  "envelope": "envelope",
+  "envelopes": "envelope",
+  "sachê": "sache",
+  "sache": "sache",
+  "sachês": "sache",
+  "saches": "sache",
 
   // Units
   "unidade": "un",
@@ -74,6 +88,12 @@ const UNIT_CATEGORY: Record<string, UnitCategory> = {
   "colher_cha": "volume",
   "colher_cafe": "volume",
   "copo": "volume",
+  "pote": "unit",
+  "caixa": "unit",
+  "lata": "unit",
+  "pacote": "unit",
+  "envelope": "unit",
+  "sache": "unit",
   "un": "unit",
   "pitada": "unit",
   "a_gosto": "unit",
@@ -130,6 +150,26 @@ const INGREDIENT_DENSITY: Record<string, number> = {
   "arroz": 0.75,
   "feijão": 0.8,
   "aveia": 0.4,
+  "chocolate": 0.5,
+  "coco": 0.4,
+  "queijo": 0.5,
+  "farinha de milho": 0.5,
+  "fubá": 0.55,
+  "polvilho": 0.5,
+  "iogurte": 1.03,
+  "vinagre": 1.01,
+  "suco": 1.04,
+  "shoyu": 1.2,
+  "mostarda": 1.05,
+  "ketchup": 1.15,
+  "maionese": 0.9,
+  "farinha de aveia": 0.4,
+  "açúcar mascavo": 0.8,
+  "açúcar refinado": 0.85,
+  "melado": 1.4,
+  "xarope": 1.3,
+  "manteiga de amendoim": 1.1,
+  "leite de coco": 1.0,
 };
 
 /**
@@ -154,7 +194,7 @@ export function parseQuantity(raw: string): ParsedQuantity | null {
   let unitPart = "";
 
   // Handle fractions and "meia"/"meio"
-  let processedText = text
+  const processedText = text
     .replace(/meia/g, "0.5")
     .replace(/meio/g, "0.5")
     .replace(/½/g, "0.5")
@@ -262,7 +302,7 @@ export function subtractQuantity(
   ingredientName: string
 ): { remaining: number; pantryBaseUnit: string; sufficient: boolean } | null {
   const pantryBase = toBase(pantryQty);
-  let recipeBase = toBase(recipeQty);
+  const recipeBase = toBase(recipeQty);
 
   // Same category → direct subtraction
   if (pantryQty.category === recipeQty.category) {

@@ -48,11 +48,11 @@ export default function AddRecipe() {
         setInstructions((recipe.instructions || "").replace(/\\n/g, "\n"));
         setSource(urlInput.trim());
         setIngredients(recipe.ingredients?.length
-          ? recipe.ingredients.map((i: any) => ({ name: i.name || "", quantity: i.quantity || "" }))
+          ? recipe.ingredients.map((i: Ingredient) => ({ name: i.name || "", quantity: i.quantity || "" }))
           : [{ name: "", quantity: "" }]);
         toast({ title: "Receita importada!", description: "Revise os dados e salve." });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Import error:", err);
       toast({ title: "Erro ao importar", description: "Não foi possível extrair a receita desse link.", variant: "destructive" });
     } finally {
@@ -76,9 +76,10 @@ export default function AddRecipe() {
         createdAt: new Date().toISOString(),
       });
       toast({ title: "Receita salva!", description: `"${title}" foi adicionada às suas receitas.` });
-      navigate("/");
-    } catch (err: any) {
-      toast({ title: "Erro ao salvar", description: err.message, variant: "destructive" });
+      navigate("/recipes");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erro desconhecido";
+      toast({ title: "Erro ao salvar", description: message, variant: "destructive" });
     } finally {
       setSaving(false);
     }

@@ -113,9 +113,9 @@ async function fetchYouTubeContent(videoId: string): Promise<string> {
       console.log("Found caption tracks:", tracks.length);
       // Prefer Portuguese, then any auto-generated
       const ptTrack = tracks.find(
-        (t: any) => t.languageCode === "pt" || t.languageCode === "pt-BR"
+        (t: { languageCode: string }) => t.languageCode === "pt" || t.languageCode === "pt-BR"
       );
-      const autoTrack = tracks.find((t: any) => t.kind === "asr");
+      const autoTrack = tracks.find((t: { kind?: string }) => t.kind === "asr");
       const track = ptTrack || autoTrack || tracks[0];
 
       if (track?.baseUrl) {
@@ -232,18 +232,18 @@ serve(async (req) => {
 
     const systemPrompt =
       sourceType === "YouTube video"
-        ? `You extract recipes from YouTube video data (title, description, and/or transcript/captions).
-The user will provide whatever data was available from the video.
-Even if the data is incomplete, do your best to extract or reconstruct the recipe.
-If there's a transcript of someone speaking, extract the recipe steps from the spoken words.
-If the description has ingredient lists or steps, use those.
-Format instructions with real newlines between steps, numbered.
-Always respond in Portuguese (Brazilian).
-If you truly cannot find any recipe content, set the error field.`
-        : `You extract recipes from webpage text.
-Format instructions with real newlines between steps, numbered.
-Always respond in Portuguese (Brazilian).
-If you truly cannot find any recipe content, set the error field.`;
+        ? `Você é um extrator de receitas especializado em vídeos do YouTube (título, descrição e transcrição).
+Extraia os ingredientes e o modo de preparo detalhado.
+Se os passos estiverem na transcrição (alguém falando), organize-os em uma lista numerada clara.
+Identifique quantidades como "2kg", "1 xícara", "3 colheres de sopa".
+Responda sempre em Português do Brasil.
+Se não encontrar uma receita, preencha o campo 'error'.`
+        : `Você é um extrator de receitas especializado em sites de culinária brasileiros (TudoGostoso, Panelinha, Receitas Globo, etc).
+Extraia o título, descrição, lista de ingredientes e o modo de preparo.
+Formate as instruções com quebras de linha reais entre os passos, numerados.
+Identifique quantidades comuns na culinária brasileira (xícara, colher de sopa, gramas, etc).
+Responda sempre em Português do Brasil.
+Se não encontrar uma receita, preencha o campo 'error'.`;
 
     const aiResp = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",

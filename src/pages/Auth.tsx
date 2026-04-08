@@ -87,10 +87,11 @@ export default function Auth() {
         });
         return;
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Algo deu errado.";
       toast({
         title: "Erro",
-        description: err.message || "Algo deu errado.",
+        description: message,
         variant: "destructive",
       });
     } finally {

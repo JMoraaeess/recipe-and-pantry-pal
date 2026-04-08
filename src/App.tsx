@@ -6,10 +6,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BottomNav } from "@/components/BottomNav";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import Home from "./pages/Home";
+import Index from "./pages/Index";
+import Profile from "./pages/Profile";
 import Recipes from "./pages/Recipes";
+import ShoppingList from "./pages/ShoppingList";
 import AddRecipe from "./pages/AddRecipe";
 import Pantry from "./pages/Pantry";
+import AddPantryItem from "./pages/AddPantryItem";
 import RecipeDetail from "./pages/RecipeDetail";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -41,11 +44,14 @@ const App = () => (
           <div className="max-w-lg mx-auto">
             <Routes>
               <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
-              <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+              <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/recipes" element={<ProtectedRoute><Recipes /></ProtectedRoute>} />
+              <Route path="/shopping-list" element={<ProtectedRoute><ShoppingList /></ProtectedRoute>} />
               <Route path="/add" element={<ProtectedRoute><AddRecipe /></ProtectedRoute>} />
               <Route path="/pantry" element={<ProtectedRoute><Pantry /></ProtectedRoute>} />
-              <Route path="/recipe/:id" element={<ProtectedRoute><RecipeDetail /></ProtectedRoute>} />
+                <Route path="/add-pantry" element={<ProtectedRoute><AddPantryItem /></ProtectedRoute>} />
+                <Route path="/recipe/:id" element={<ProtectedRoute><RecipeDetail /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <BottomNav />

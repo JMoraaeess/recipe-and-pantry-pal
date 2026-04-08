@@ -22,6 +22,7 @@ export type Database = {
           numeric_value: number | null
           quantity: string | null
           reserved_value: number | null
+          expiry_date: string | null
           unit: string | null
           user_id: string
         }
@@ -32,6 +33,7 @@ export type Database = {
           numeric_value?: number | null
           quantity?: string | null
           reserved_value?: number | null
+          expiry_date?: string | null
           unit?: string | null
           user_id: string
         }
@@ -42,6 +44,7 @@ export type Database = {
           numeric_value?: number | null
           quantity?: string | null
           reserved_value?: number | null
+          expiry_date?: string | null
           unit?: string | null
           user_id?: string
         }
@@ -75,6 +78,7 @@ export type Database = {
           id: string
           ingredients: Json
           instructions: string | null
+          is_favorite: boolean
           source: string | null
           status: string
           title: string
@@ -86,6 +90,7 @@ export type Database = {
           id?: string
           ingredients?: Json
           instructions?: string | null
+          is_favorite?: boolean
           source?: string | null
           status?: string
           title: string
@@ -97,6 +102,7 @@ export type Database = {
           id?: string
           ingredients?: Json
           instructions?: string | null
+          is_favorite?: boolean
           source?: string | null
           status?: string
           title?: string

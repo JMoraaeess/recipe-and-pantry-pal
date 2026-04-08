@@ -10,7 +10,7 @@ import {
   updateRecipe,
   type Recipe,
 } from "@/lib/supabaseStore";
-import { ArrowLeft, Check, ShoppingCart, ExternalLink, BookmarkCheck, ChefHat, Undo2 } from "lucide-react";
+import { ArrowLeft, Check, ShoppingCart, ExternalLink, BookmarkCheck, ChefHat, Undo2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
@@ -25,7 +25,7 @@ export default function RecipeDetail() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
-  const [pantry, setPantry] = useState<any[]>([]);
+  const [pantry, setPantry] = useState<PantryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const reload = async () => {
@@ -39,7 +39,10 @@ export default function RecipeDetail() {
     }
   };
 
-  useEffect(() => { reload(); }, [id]);
+  useEffect(() => {
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Carregando...</div>;
   if (!recipe) return <div className="min-h-screen flex items-center justify-center"><p className="text-muted-foreground">Receita não encontrada</p></div>;
@@ -51,7 +54,7 @@ export default function RecipeDetail() {
 
   const handleReserve = async () => {
     const result = await reserveIngredients(recipe);
-    await updateRecipe({ ...recipe, status: "reservada" });
+    await updateRecipe({ id: recipe.id, status: "reservada" });
     await reload();
     toast(result.missing.length > 0
       ? { title: "Reservada com ressalvas", description: `Faltam na despensa: ${result.missing.join(", ")}` }
@@ -60,14 +63,14 @@ export default function RecipeDetail() {
 
   const handleUnreserve = async () => {
     await unreserveIngredients(recipe);
-    await updateRecipe({ ...recipe, status: "nova" });
+    await updateRecipe({ id: recipe.id, status: "nova" });
     await reload();
     toast({ title: "Reserva cancelada", description: "Os ingredientes voltaram à despensa." });
   };
 
   const handleComplete = async () => {
     const result = await completeRecipe(recipe);
-    await updateRecipe({ ...recipe, status: "concluida" });
+    await updateRecipe({ id: recipe.id, status: "concluida" });
     await reload();
     toast(result.missing.length > 0
       ? { title: "Receita concluída!", description: `Ingredientes subtraídos. Não encontrados: ${result.missing.join(", ")}` }
@@ -75,17 +78,44 @@ export default function RecipeDetail() {
   };
 
   const handleReset = async () => {
-    await updateRecipe({ ...recipe, status: "nova" });
+    await updateRecipe({ id: recipe.id, status: "nova" });
     await reload();
     toast({ title: "Status resetado", description: "Receita voltou ao estado 'Nova'." });
+  };
+
+  const handleToggleFavorite = async () => {
+    try {
+      await updateRecipe({ id: recipe.id, isFavorite: !recipe.isFavorite });
+      await reload();
+      toast({ 
+        title: !recipe.isFavorite ? "Adicionado aos favoritos" : "Removido dos favoritos",
+        description: recipe.title 
+      });
+    } catch (err: unknown) {
+      toast({ 
+        title: "Erro ao favoritar", 
+        description: "Ocorreu um problema ao salvar seu favorito.",
+        variant: "destructive" 
+      });
+    }
   };
 
   return (
     <div className="min-h-screen pb-24">
       <header className="px-5 pt-6 pb-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1 -ml-2 mb-2 text-muted-foreground">
-          <ArrowLeft className="h-4 w-4" /> Voltar
-        </Button>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1 -ml-2 text-muted-foreground">
+            <ArrowLeft className="h-4 w-4" /> Voltar
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleToggleFavorite}
+            className={`rounded-full ${recipe.isFavorite ? 'text-amber-500 bg-amber-50' : 'text-muted-foreground'}`}
+          >
+            <Star className={`h-6 w-6 ${recipe.isFavorite ? 'fill-current' : ''}`} />
+          </Button>
+        </div>
         <div className="flex items-center gap-2 mb-1">
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusInfo.color}`}>{statusInfo.label}</span>
         </div>
