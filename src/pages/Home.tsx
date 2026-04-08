@@ -1,7 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { ChefHat, UtensilsCrossed, ShoppingCart, User, Settings, HelpCircle, Info, LogOut } from "lucide-react";
+import { ChefHat, UtensilsCrossed, ShoppingCart, User, Settings, HelpCircle, Info, LogOut, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,11 +12,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "next-themes";
 
 export default function Home() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -48,8 +51,15 @@ export default function Home() {
             <DropdownMenuItem onClick={() => toast({ title: "Perfil", description: "Em breve!" })} className="gap-2 cursor-pointer">
               <User className="h-4 w-4" /> Perfil
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast({ title: "Configurações", description: "Em breve!" })} className="gap-2 cursor-pointer">
-              <Settings className="h-4 w-4" /> Configurações
+            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="gap-2 cursor-pointer justify-between">
+              <span className="flex items-center gap-2">
+                {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                Modo Escuro
+              </span>
+              <Switch
+                checked={theme === "dark"}
+                onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+              />
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => toast({ title: "Ajuda", description: "Em breve!" })} className="gap-2 cursor-pointer">
               <HelpCircle className="h-4 w-4" /> Ajuda
