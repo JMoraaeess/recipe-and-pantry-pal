@@ -1,4 +1,23 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "std/server";
+
+interface YouTubeData {
+  title?: string;
+  videoDetails?: {
+    shortDescription?: string;
+    title?: string;
+  };
+  engagementPanels?: any[];
+}
+
+interface GeminiResponse {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string;
+      }>;
+    };
+  }>;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,358 +45,182 @@ function ensureHttps(url: string): string {
 }
 
 async function fetchYouTubeContent(videoId: string): Promise<string> {
-  // Use YouTube oEmbed for title (always works)
+  console.log(`[YouTube] Iniciando extração do vídeo: ${videoId}`);
   let title = "";
   try {
     const oembedResp = await fetch(
       `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
     );
     if (oembedResp.ok) {
-      const oembedData = await oembedResp.json();
+      const oembedData: any = await oembedResp.json();
       title = oembedData.title || "";
+      console.log(`[YouTube] Título via oEmbed: ${title}`);
     }
-  } catch { /* ignore */ }
+  } catch (e) { console.error("[YouTube] Falha oEmbed:", e); }
 
-  // Fetch the full YouTube page for description and captions
   const pageResp = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
     headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
       "Accept": "text/html,application/xhtml+xml",
     },
   });
 
   if (!pageResp.ok) {
-    throw new Error(`Failed to fetch YouTube page: ${pageResp.status}`);
+    throw new Error(`Falha ao acessar YouTube (${pageResp.status})`);
   }
 
   const html = await pageResp.text();
-  console.log("YouTube HTML length:", html.length);
+  console.log(`[YouTube] HTML recebido (${html.length} bytes)`);
 
-  // Extract description from ytInitialPlayerResponse
   let description = "";
-  const playerMatch = html.match(
-    /var\s+ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;\s*(?:var|<\/script)/s
-  );
+  const playerMatch = html.match(/var\s+ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;\s*(?:var|<\/script)/s);
   if (playerMatch) {
     try {
-      const playerData = JSON.parse(playerMatch[1]);
+      const playerData: YouTubeData = JSON.parse(playerMatch[1]);
       description = playerData?.videoDetails?.shortDescription || "";
       if (!title) title = playerData?.videoDetails?.title || "";
-      console.log("Found description from playerResponse, length:", description.length);
-    } catch (e) {
-      console.error("Failed to parse ytInitialPlayerResponse:", e);
-    }
+      console.log(`[YouTube] Descrição encontrada via playerResponse (${description.length} chars)`);
+    } catch (e) { console.error("[YouTube] Erro parse ytInitialPlayerResponse", e); }
   }
 
-  // Fallback: try ytInitialData
   if (!description) {
-    const dataMatch = html.match(
-      /var\s+ytInitialData\s*=\s*(\{.+?\})\s*;\s*(?:var|<\/script)/s
-    );
+    const dataMatch = html.match(/var\s+ytInitialData\s*=\s*(\{.+?\})\s*;\s*(?:var|<\/script)/s);
     if (dataMatch) {
       try {
-        const initData = JSON.parse(dataMatch[1]);
-        // Navigate to description in engagement panel
+        const initData: YouTubeData = JSON.parse(dataMatch[1]);
         const panels = initData?.engagementPanels || [];
         for (const panel of panels) {
-          const content =
-            panel?.engagementPanelSectionListRenderer?.content
-              ?.structuredDescriptionContentRenderer?.items;
+          const content = panel?.engagementPanelSectionListRenderer?.content?.structuredDescriptionContentRenderer?.items;
           if (content) {
             for (const item of content) {
-              const desc =
-                item?.expandableVideoDescriptionBodyRenderer?.attributedDescriptionBodyText?.content ||
-                item?.videoDescriptionHeaderRenderer?.attributedDescriptionBodyText?.content;
-              if (desc) {
-                description = desc;
-                console.log("Found description from ytInitialData, length:", description.length);
-                break;
-              }
+              const desc = item?.expandableVideoDescriptionBodyRenderer?.attributedDescriptionBodyText?.content ||
+                           item?.videoDescriptionHeaderRenderer?.attributedDescriptionBodyText?.content;
+              if (desc) { description = desc; break; }
             }
           }
         }
-      } catch (e) {
-        console.error("Failed to parse ytInitialData:", e);
-      }
+      } catch (e) { console.error("[YouTube] Erro parse ytInitialData", e); }
     }
   }
 
-  // Try to get captions/transcript
   let transcript = "";
   try {
     const captionMatch = html.match(/"captionTracks"\s*:\s*(\[.*?\])/s);
     if (captionMatch) {
       const tracks = JSON.parse(captionMatch[1]);
-      console.log("Found caption tracks:", tracks.length);
-      // Prefer Portuguese, then any auto-generated
-      const ptTrack = tracks.find(
-        (t: { languageCode: string }) => t.languageCode === "pt" || t.languageCode === "pt-BR"
-      );
-      const autoTrack = tracks.find((t: { kind?: string }) => t.kind === "asr");
+      const ptTrack = tracks.find((t: any) => t.languageCode === "pt" || t.languageCode === "pt-BR");
+      const autoTrack = tracks.find((t: any) => t.kind === "asr");
       const track = ptTrack || autoTrack || tracks[0];
 
       if (track?.baseUrl) {
-        console.log("Fetching captions from:", track.baseUrl.substring(0, 80));
         const captionResp = await fetch(track.baseUrl);
         if (captionResp.ok) {
           const captionXml = await captionResp.text();
-          transcript = captionXml
-            .replace(/<[^>]+>/g, " ")
-            .replace(/&amp;/g, "&")
-            .replace(/&lt;/g, "<")
-            .replace(/&gt;/g, ">")
-            .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'")
-            .replace(/\s+/g, " ")
-            .trim();
-          console.log("Got transcript, length:", transcript.length);
+          transcript = captionXml.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
         }
       }
-    } else {
-      console.log("No caption tracks found in page");
     }
-  } catch (e) {
-    console.error("Failed to extract captions:", e);
-  }
+  } catch (e) { console.error("[YouTube] Erro extração de legendas", e); }
 
-  // Build the content for AI
   let content = "";
-  if (title) content += `TÍTULO DO VÍDEO: ${title}\n\n`;
-  if (description) content += `DESCRIÇÃO DO VÍDEO:\n${description}\n\n`;
-  if (transcript) content += `TRANSCRIÇÃO/LEGENDAS DO VÍDEO:\n${transcript}\n\n`;
+  if (title) content += `TÍTULO: ${title}\n\n`;
+  if (description) content += `DESCRIÇÃO:\n${description}\n\n`;
+  if (transcript) content += `TRANSCRIÇÃO:\n${transcript}\n\n`;
 
-  if (!description && !transcript) {
-    // Last resort: just give the cleaned HTML text
-    const fallbackText = html
-      .replace(/<script[\s\S]*?<\/script>/gi, "")
-      .replace(/<style[\s\S]*?<\/style>/gi, "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .slice(0, 8000);
-    content += `CONTEÚDO DA PÁGINA:\n${fallbackText}\n`;
-    console.log("Using fallback page text");
-  }
-
-  return content.slice(0, 15000);
+  return content.slice(0, 20000);
 }
 
 async function fetchWebpageContent(url: string): Promise<string> {
   const pageResp = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept: "text/html",
+    headers: { 
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", 
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9" 
     },
   });
-
-  if (!pageResp.ok) {
-    throw new Error(`Failed to fetch page: ${pageResp.status}`);
-  }
-
+  if (!pageResp.ok) throw new Error(`Falha ao acessar o site (${pageResp.status})`);
   const html = await pageResp.text();
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .slice(0, 12000);
+  return html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 12000);
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+async function callGemini(apiKey: string, systemPrompt: string, userContent: string, imageData: any = null): Promise<any> {
+  const model = "gemini-1.5-flash";
+  const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+  
+  const textPrompt = `${systemPrompt}\n\nCONTEÚDO:\n${userContent}\n\nResponda APENAS com um JSON puro:
+  {
+    "title": "título",
+    "description": "descrição",
+    "category": "Salgados ou Doces",
+    "ingredients": [{"name": "item", "quantity": "qtd"}],
+    "instructions": "passos numerados",
+    "error": null
+  }`;
+
+  const parts: any[] = [{ text: textPrompt }];
+  if (imageData) parts.push({ inlineData: { mimeType: imageData.mimeType, data: imageData.data } });
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: { temperature: 0.1 }
+    }),
+  });
+
+  if (!resp.ok) throw new Error(`Erro IA: ${resp.status}`);
+  const data: GeminiResponse = await resp.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  
+  const startIdx = text.indexOf("{");
+  const endIdx = text.lastIndexOf("}");
+  if (startIdx === -1) throw new Error("JSON Inválido");
+  return JSON.parse(text.substring(startIdx, endIdx + 1));
+}
+
+serve(async (req: any) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { url: rawUrl } = await req.json();
+    const { url: rawUrl, image: rawImage }: any = await req.json();
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!apiKey) throw new Error("GEMINI_API_KEY não configurada");
 
-    if (!rawUrl || typeof rawUrl !== "string") {
-      return new Response(JSON.stringify({ error: "URL is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    let contentForAI = "";
+    let sourceType = "";
+    let imageData: any = null;
 
-    const url = ensureHttps(rawUrl);
-    console.log("Processing URL:", url);
-
-    // Determine source type and fetch content
-    let content: string;
-    let sourceType: string;
-
-    if (isYouTubeUrl(url)) {
-      const videoId = extractYouTubeVideoId(url);
-      if (!videoId) {
-        return new Response(
-          JSON.stringify({ error: "Não foi possível identificar o vídeo do YouTube. Use o formato: https://www.youtube.com/watch?v=..." }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      console.log("YouTube video ID:", videoId);
-      content = await fetchYouTubeContent(videoId);
-      sourceType = "YouTube video";
-    } else {
-      content = await fetchWebpageContent(url);
-      sourceType = "webpage";
-    }
-
-    console.log("Content length for AI:", content.length);
-
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is not configured");
-    }
-
-    const systemPrompt =
-      sourceType === "YouTube video"
-        ? `Você é um extrator de receitas especializado em vídeos do YouTube (título, descrição e transcrição).
-Extraia os ingredientes e o modo de preparo detalhado.
-Se os passos estiverem na transcrição (alguém falando), organize-os em uma lista numerada clara.
-Identifique quantidades como "2kg", "1 xícara", "3 colheres de sopa".
-Responda sempre em Português do Brasil.
-Se não encontrar uma receita, preencha o campo 'error'.`
-        : `Você é um extrator de receitas especializado em sites de culinária brasileiros (TudoGostoso, Panelinha, Receitas Globo, etc).
-Extraia o título, descrição, lista de ingredientes e o modo de preparo.
-Formate as instruções com quebras de linha reais entre os passos, numerados.
-Identifique quantidades comuns na culinária brasileira (xícara, colher de sopa, gramas, etc).
-Responda sempre em Português do Brasil.
-Se não encontrar uma receita, preencha o campo 'error'.`;
-
-    const aiResp = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: `Extract the recipe from this ${sourceType} content:\n\n${content}`,
-            },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "extract_recipe",
-                description: "Extract a recipe from content",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    title: { type: "string", description: "Recipe title" },
-                    description: {
-                      type: "string",
-                      description: "Short description of the recipe",
-                    },
-                    ingredients: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          name: { type: "string" },
-                          quantity: { type: "string" },
-                        },
-                        required: ["name", "quantity"],
-                      },
-                    },
-                    instructions: {
-                      type: "string",
-                      description:
-                        "Step by step instructions with real newlines between steps",
-                    },
-                    error: {
-                      type: "string",
-                      description:
-                        "Error message if no recipe found. Only set if truly no recipe.",
-                    },
-                  },
-                  required: ["title", "ingredients", "instructions"],
-                },
-              },
-            },
-          ],
-          tool_choice: {
-            type: "function",
-            function: { name: "extract_recipe" },
-          },
-        }),
-      }
-    );
-
-    if (!aiResp.ok) {
-      if (aiResp.status === 429) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "Limite de requisições atingido. Tente novamente em alguns segundos.",
-          }),
-          {
-            status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-      if (aiResp.status === 402) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "Créditos de IA esgotados. Adicione créditos em Settings > Workspace > Usage.",
-          }),
-          {
-            status: 402,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-      const errText = await aiResp.text();
-      console.error("AI error:", aiResp.status, errText);
-      throw new Error("AI processing failed");
-    }
-
-    const aiData = await aiResp.json();
-
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    let recipe;
-    if (toolCall?.function?.arguments) {
-      recipe =
-        typeof toolCall.function.arguments === "string"
-          ? JSON.parse(toolCall.function.arguments)
-          : toolCall.function.arguments;
-    } else {
-      const msgContent = aiData.choices?.[0]?.message?.content || "";
-      const jsonMatch = msgContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        recipe = JSON.parse(jsonMatch[0]);
+    if (rawImage) {
+      sourceType = "image";
+      contentForAI = "Extraia desta imagem.";
+      const base64Data = rawImage.includes(",") ? rawImage.split(",")[1] : rawImage;
+      const mime = rawImage.includes(":") ? rawImage.split(":")[1].split(";")[0] : "image/jpeg";
+      imageData = { mimeType: mime, data: base64Data };
+    } else if (rawUrl) {
+      const url = ensureHttps(rawUrl);
+      if (isYouTubeUrl(url)) {
+        sourceType = "YouTube";
+        const id = extractYouTubeVideoId(url);
+        if (!id) throw new Error("YouTube ID inválido");
+        contentForAI = await fetchYouTubeContent(id);
       } else {
-        throw new Error("Could not extract recipe from AI response");
+        sourceType = "Wesite";
+        contentForAI = await fetchWebpageContent(url);
       }
     }
 
-    // Clean up literal \n in instructions
-    if (recipe?.instructions) {
-      recipe.instructions = recipe.instructions.replace(/\\n/g, "\n");
-    }
+    const systemPrompt = `Extraia a receita do conteúdo de ${sourceType}. Idioma: Português.`;
+    const result = await callGemini(apiKey, systemPrompt, contentForAI, imageData);
 
-    return new Response(JSON.stringify({ recipe }), {
+    return new Response(JSON.stringify({ recipe: result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e) {
-    console.error("extract-recipe error:", e);
-    return new Response(
-      JSON.stringify({
-        error: e instanceof Error ? e.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+
+  } catch (e: any) {
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

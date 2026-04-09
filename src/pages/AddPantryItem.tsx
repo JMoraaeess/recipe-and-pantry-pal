@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { addPantryItem } from "@/lib/supabaseStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,10 @@ import { useToast } from "@/hooks/use-toast";
 export default function AddPantryItem() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const location = useLocation();
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("");
+  const [category, setCategory] = useState(location.state?.category || "Mercearia");
   const [expiryDate, setExpiryDate] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -23,6 +25,7 @@ export default function AddPantryItem() {
       await addPantryItem({ 
         name: name.trim(), 
         quantity: quantity.trim() || undefined,
+        category: category,
         expiryDate: expiryDate || undefined
       });
       toast({ 
@@ -97,6 +100,24 @@ export default function AddPantryItem() {
                 onChange={(e) => setExpiryDate(e.target.value)} 
                 className="h-11"
               />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground block mb-2">Categoria *</label>
+              <div className="grid grid-cols-2 gap-2">
+                {["Proteínas", "Frios", "Hortifruti", "Laticínios", "Mercearia", "Bebidas", "Temperos"].map((cat) => (
+                  <Button
+                    key={cat}
+                    type="button"
+                    variant={category === cat ? "default" : "outline"}
+                    onClick={() => setCategory(cat)}
+                    size="sm"
+                    className="h-10 text-xs truncate"
+                  >
+                    {cat}
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
 

@@ -25,6 +25,7 @@ export type Database = {
           expiry_date: string | null
           unit: string | null
           user_id: string
+          category: string
         }
         Insert: {
           created_at?: string
@@ -36,6 +37,7 @@ export type Database = {
           expiry_date?: string | null
           unit?: string | null
           user_id: string
+          category?: string
         }
         Update: {
           created_at?: string
@@ -47,6 +49,7 @@ export type Database = {
           expiry_date?: string | null
           unit?: string | null
           user_id?: string
+          category?: string
         }
         Relationships: []
       }
@@ -78,11 +81,12 @@ export type Database = {
           id: string
           ingredients: Json
           instructions: string | null
-          is_favorite: boolean
+          is_favorite: boolean | null
           source: string | null
           status: string
           title: string
           user_id: string
+          category: string
         }
         Insert: {
           created_at?: string
@@ -90,11 +94,12 @@ export type Database = {
           id?: string
           ingredients?: Json
           instructions?: string | null
-          is_favorite?: boolean
+          is_favorite?: boolean | null
           source?: string | null
           status?: string
           title: string
           user_id: string
+          category?: string
         }
         Update: {
           created_at?: string
@@ -102,11 +107,12 @@ export type Database = {
           id?: string
           ingredients?: Json
           instructions?: string | null
-          is_favorite?: boolean
+          is_favorite?: boolean | null
           source?: string | null
           status?: string
           title?: string
           user_id?: string
+          category?: string
         }
         Relationships: []
       }

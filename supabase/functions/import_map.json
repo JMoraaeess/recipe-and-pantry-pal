@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "std/server": "https://deno.land/std@0.190.0/http/server.ts",
+    "std/server_legacy": "https://deno.land/std@0.168.0/http/server.ts"
+  }
+}

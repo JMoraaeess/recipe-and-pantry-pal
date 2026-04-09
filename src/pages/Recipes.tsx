@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getRecipes, deleteRecipe, updateRecipe, getPantry, checkIngredients, type Recipe, type PantryItem } from "@/lib/supabaseStore";
-import { Trash2, ChefHat, Plus, User, UtensilsCrossed, Star, CheckCircle2, Clock, ShoppingCart } from "lucide-react";
+import { Trash2, ChefHat, Plus, User, UtensilsCrossed, Star, CheckCircle2, Clock, ShoppingCart, ArrowLeft, CookingPot, Cake, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ export default function Recipes() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [pantry, setPantry] = useState<PantryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -58,45 +59,122 @@ export default function Recipes() {
 
   return (
     <div className="min-h-screen pb-24 bg-background">
-      <header className="px-5 pt-8 pb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Minhas Receitas</h1>
-          <p className="text-muted-foreground mt-1">O que vamos preparar?</p>
-        </div>
-        <Link to="/profile">
-          <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full bg-muted w-10 h-10">
-            <User className="h-5 w-5" />
-          </Button>
-        </Link>
-      </header>
+      <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border shadow-sm">
+        <header className="px-5 pt-8 pb-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {selectedCategory ? selectedCategory : "Minhas Receitas"}
+            </h1>
+            <p className="text-muted-foreground mt-1 text-xs">
+              {selectedCategory ? `Explorando seus ${selectedCategory.toLowerCase()}` : "O que vamos preparar?"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link to="/profile">
+              <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full bg-muted w-10 h-10">
+                <User className="h-5 w-5" />
+              </Button>
+            </Link>
+          </div>
+        </header>
 
-      <div className="px-5 space-y-6">
-        {/* New Recipe Action Banner */}
-        <button
-          onClick={() => navigate("/add")}
-          className="w-full bg-secondary text-secondary-foreground p-4 rounded-2xl flex items-center justify-between group overflow-hidden relative shadow-sm hover:shadow-md transition-all"
-        >
-          <div className="relative z-10 text-left">
-            <p className="text-lg font-bold">Nova Receita</p>
-            <p className="text-xs opacity-90">Importe do YouTube ou crie manualmente</p>
+        <div className="px-5 pb-4">
+          {/* Header already has the action button pinned */}
+        </div>
+      </div>
+
+      <div className="px-5 pt-6 space-y-6">
+        {!selectedCategory && (
+          <button
+            onClick={() => navigate("/add")}
+            className="w-full bg-secondary text-secondary-foreground p-4 rounded-2xl flex items-center justify-between group overflow-hidden relative shadow-sm hover:shadow-md transition-all mb-2"
+          >
+            <div className="relative z-10 text-left">
+              <p className="text-lg font-bold">Nova Receita</p>
+              <p className="text-xs opacity-90">Importe do YouTube ou crie manualmente</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center relative z-10">
+              <Plus className="h-6 w-6 text-white" />
+            </div>
+            <UtensilsCrossed className="absolute -right-4 -bottom-4 h-24 w-24 opacity-10 group-hover:scale-110 transition-transform" />
+          </button>
+        )}
+
+        {!selectedCategory && (
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={() => setSelectedCategory("Todos")}
+              className="aspect-square bg-card border border-border rounded-3xl flex flex-col items-center justify-center gap-3 shadow-sm hover:shadow-md transition-all group"
+            >
+              <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <LayoutGrid className="h-8 w-8 text-foreground" />
+              </div>
+              <span className="font-bold text-lg">Todos</span>
+            </button>
+            <button
+              onClick={() => setSelectedCategory("Favoritos")}
+              className="aspect-square bg-card border border-border rounded-3xl flex flex-col items-center justify-center gap-3 shadow-sm hover:shadow-md transition-all group"
+            >
+              <div className="w-16 h-16 rounded-full bg-white border border-border flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Star className="h-8 w-8 text-foreground" />
+              </div>
+              <span className="font-bold text-lg">Favoritos</span>
+            </button>
+            <button
+              onClick={() => setSelectedCategory("Salgados")}
+              className="aspect-square bg-card border border-border rounded-3xl flex flex-col items-center justify-center gap-3 shadow-sm hover:shadow-md transition-all group"
+            >
+              <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <CookingPot className="h-8 w-8 text-foreground" />
+              </div>
+              <span className="font-bold text-lg">Salgados</span>
+            </button>
+            <button
+              onClick={() => setSelectedCategory("Doces")}
+              className="aspect-square bg-card border border-border rounded-3xl flex flex-col items-center justify-center gap-3 shadow-sm hover:shadow-md transition-all group"
+            >
+              <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Cake className="h-8 w-8 text-foreground" />
+              </div>
+              <span className="font-bold text-lg">Doces</span>
+            </button>
           </div>
-          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center relative z-10">
-            <Plus className="h-6 w-6 text-white" />
-          </div>
-          <UtensilsCrossed className="absolute -right-4 -bottom-4 h-24 w-24 opacity-10 group-hover:scale-110 transition-transform" />
-        </button>
+        )}
+
+        {selectedCategory && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setSelectedCategory(null)} 
+            className="gap-1 -ml-2 text-muted-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" /> Todas as categorias
+          </Button>
+        )}
 
         <div className="space-y-4">
           {loading ? (
             <p className="text-center py-20 text-muted-foreground">Carregando...</p>
-          ) : recipes.length === 0 ? (
+          ) : !selectedCategory ? null : recipes.filter(r => {
+            if (selectedCategory === "Todos") return true;
+            if (selectedCategory === "Favoritos") return r.isFavorite;
+            return r.category === selectedCategory;
+          }).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center bg-muted/20 border border-dashed border-border rounded-2xl">
               <ChefHat className="h-10 w-10 text-muted-foreground opacity-50 mb-4" />
-              <p className="text-muted-foreground text-lg">Nenhuma receita ainda</p>
-              <p className="text-sm text-muted-foreground mt-1 mb-6">Comece adicionando sua primeira receita</p>
+              <p className="text-muted-foreground text-lg">Nenhuma receita nesta categoria</p>
+              <Button variant="link" onClick={() => navigate("/add")} className="mt-2">
+                Adicionar primeira {selectedCategory.toLowerCase().replace(/s$/, "")}
+              </Button>
             </div>
           ) : (
-            recipes.map((recipe) => {
+            recipes
+              .filter(r => {
+                if (selectedCategory === "Todos") return true;
+                if (selectedCategory === "Favoritos") return r.isFavorite;
+                return r.category === selectedCategory;
+              })
+              .map((recipe) => {
               const checked = checkIngredients(recipe.ingredients, pantry);
               const haveCount = checked.filter((i) => i.sufficient).length;
               const totalCount = recipe.ingredients.length;
@@ -108,7 +186,7 @@ export default function Recipes() {
                     <div className="p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <h2 className="font-display text-lg font-semibold truncate pr-8">{recipe.title}</h2>
+                          <h2 className="font-display text-lg font-bold uppercase truncate pr-8">{recipe.title}</h2>
                           
                           <div className="flex items-center gap-2 mt-1">
                             <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">

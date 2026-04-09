@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { IngredientIcon } from "@/components/IngredientIcon";
+import { capitalize } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -59,6 +60,29 @@ export default function ShoppingList() {
     loadData();
   }, []);
 
+  const handleSplitIngredient = (name: string): string[] => {
+    // Handle parentheses patterns like "Ingrediente (ou opção genérica)"
+    let cleanedName = name.replace(/\s*\(\s*ou\s+([^)]*)\)/i, (match, p1) => {
+      const genericKeywords = ["outro", "outra", "preferencia", "gosto", "qualquer", "opcional", "preferência"];
+      const isGeneric = genericKeywords.some(k => p1.toLowerCase().includes(k)) || p1.length > 30;
+      return isGeneric ? "" : ` ou ${p1}`;
+    });
+
+    const parts = cleanedName.split(/\s+ou\s+|\s*\/\s*/i).map(p => p.trim()).filter(Boolean);
+    if (parts.length <= 1) return [capitalize(cleanedName.trim() || name)];
+    
+    // Check if the 2nd part is generic
+    const secondPart = parts[1].toLowerCase();
+    const genericKeywords = ["outro", "outra", "preferencia", "gosto", "qualquer", "opcional", "preferência"];
+    const isGeneric = genericKeywords.some(k => secondPart.includes(k)) || parts[1].length > 30;
+
+    if (isGeneric) {
+      return [capitalize(parts[0])];
+    }
+
+    return parts.map(p => capitalize(p));
+  };
+
   const addRecipeToCustom = (recipe: Recipe) => {
     const checked = checkIngredients(recipe.ingredients, pantry);
     const missing = checked.filter(ing => !ing.sufficient);
@@ -68,12 +92,18 @@ export default function ShoppingList() {
       return;
     }
 
-    const newItems = missing.map(ing => ({
-      id: crypto.randomUUID(),
-      name: ing.name,
-      quantity: ing.quantity,
-      checked: false
-    }));
+    const newItems: any[] = [];
+    missing.forEach(ing => {
+      const names = handleSplitIngredient(ing.name);
+      names.forEach(name => {
+        newItems.push({
+          id: crypto.randomUUID(),
+          name,
+          quantity: ing.quantity,
+          checked: false
+        });
+      });
+    });
 
     setCustomItems([...customItems, ...newItems]);
     setIsSelectorOpen(false);
@@ -90,13 +120,16 @@ export default function ShoppingList() {
       const missing = checked.filter(ing => !ing.sufficient);
       
       missing.forEach(ing => {
-        newItems.push({
-          id: crypto.randomUUID(),
-          name: ing.name,
-          quantity: ing.quantity,
-          checked: false
+        const names = handleSplitIngredient(ing.name);
+        names.forEach(name => {
+          newItems.push({
+            id: crypto.randomUUID(),
+            name,
+            quantity: ing.quantity,
+            checked: false
+          });
+          addedCount++;
         });
-        addedCount++;
       });
     });
 
@@ -308,7 +341,7 @@ export default function ShoppingList() {
                     <div className="flex items-center justify-between gap-2">
                       <p className={`flex items-center gap-2 text-base font-bold truncate ${item.checked ? "line-through text-muted-foreground" : "text-foreground"}`}>
                         <IngredientIcon name={item.name} className="text-xl shrink-0 opacity-90" />
-                        <span className="truncate">{item.name}</span>
+                        <span className="truncate">{capitalize(item.name)}</span>
                       </p>
                       {item.quantity && (
                         <span className={`shrink-0 px-2 py-1 rounded-lg text-xs font-black border-2 ${

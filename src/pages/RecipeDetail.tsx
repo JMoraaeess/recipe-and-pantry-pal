@@ -14,6 +14,7 @@ import { ArrowLeft, Check, ShoppingCart, ExternalLink, BookmarkCheck, ChefHat, U
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { IngredientIcon } from "@/components/IngredientIcon";
+import { capitalize } from "@/lib/utils";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   nova: { label: "Nova", color: "bg-muted text-muted-foreground" },
@@ -115,19 +116,11 @@ export default function RecipeDetail() {
           <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1 -ml-2 text-muted-foreground">
             <ArrowLeft className="h-4 w-4" /> Voltar
           </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handleToggleFavorite}
-            className={`rounded-full ${recipe.isFavorite ? 'text-amber-500 bg-amber-50' : 'text-muted-foreground'}`}
-          >
-            <Star className={`h-6 w-6 ${recipe.isFavorite ? 'fill-current' : ''}`} />
-          </Button>
         </div>
         <div className="flex items-center gap-2 mb-1">
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusInfo.color}`}>{statusInfo.label}</span>
         </div>
-        <h1 className="text-3xl font-bold tracking-tight">{recipe.title}</h1>
+        <h1 className="text-3xl font-bold tracking-tight uppercase">{recipe.title}</h1>
         {recipe.description && <p className="text-muted-foreground mt-1">{recipe.description}</p>}
         {recipe.source && (
           <a href={recipe.source.startsWith("http") ? recipe.source : undefined} target="_blank" rel="noopener noreferrer"
@@ -139,7 +132,7 @@ export default function RecipeDetail() {
       </header>
 
       <div className="px-5">
-        <div className="flex gap-3 mb-5">
+        <div className="flex items-center gap-3 mb-5">
           <div className="flex items-center gap-1.5 bg-secondary/20 rounded-full px-3 py-1.5 text-sm font-medium">
             <Check className="h-4 w-4 text-secondary" />
             <span className="text-secondary">{haveCount} tem</span>
@@ -148,6 +141,14 @@ export default function RecipeDetail() {
             <ShoppingCart className="h-4 w-4" />
             {needCount} falta{needCount !== 1 ? "m" : ""}
           </div>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleToggleFavorite}
+            className={`rounded-full h-8 w-8 ml-auto ${recipe.isFavorite ? 'text-amber-500 bg-amber-50' : 'text-muted-foreground'}`}
+          >
+            <Star className={`h-5 w-5 ${recipe.isFavorite ? 'fill-current' : ''}`} />
+          </Button>
         </div>
 
         {recipe.status === "nova" && (
@@ -177,7 +178,7 @@ export default function RecipeDetail() {
                   <IngredientIcon name={ing.name} className="text-xl" />
                 </div>
                 <div className="flex-1 font-medium flex flex-col min-w-0">
-                  <span className="truncate">{ing.name}</span>
+                  <span className="truncate">{capitalize(ing.name)}</span>
                   <div className="flex items-center gap-1.5 mt-0.5 text-[11px] uppercase tracking-wider">
                     {ing.sufficient ? (
                       <span className="text-secondary font-bold flex items-center gap-1">

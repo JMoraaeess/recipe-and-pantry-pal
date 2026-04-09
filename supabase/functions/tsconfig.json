@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "lib": ["esnext"],
+    "baseUrl": ".",
+    "paths": {
+      "std/server": ["./deno_types.d.ts"],
+      "std/server_legacy": ["./deno_types.d.ts"]
+    },
+    "skipLibCheck": true,
+    "moduleResolution": "node",
+    "strict": false
+  },
+  "include": ["**/*.ts", "**/*.d.ts"]
+}
