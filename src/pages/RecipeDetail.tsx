@@ -217,6 +217,7 @@ export default function RecipeDetail() {
           </section>
         )}
 
+
         {recipe.instructions && (
           <section>
             <h2 className="text-xl font-semibold mb-3">Modo de Preparo</h2>

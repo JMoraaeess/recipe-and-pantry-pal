@@ -1,7 +1,7 @@
-import { Utensils } from "lucide-react";
+import { UtensilsCrossed } from "lucide-react";
 
 interface IngredientIconProps {
-  name?: string; // Kept for prop compatibility but unused now
+  name?: string; 
   className?: string;
   size?: number;
 }
@@ -12,7 +12,7 @@ export function IngredientIcon({ className = "", size = 20 }: IngredientIconProp
       className={`inline-flex items-center justify-center ${className}`}
       aria-hidden="true"
     >
-      <Utensils
+      <UtensilsCrossed
         size={size}
         strokeWidth={1.5}
         className="text-muted-foreground"

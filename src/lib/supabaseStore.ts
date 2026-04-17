@@ -16,6 +16,7 @@ export interface Recipe {
   description: string;
   ingredients: Ingredient[];
   instructions: string;
+  tools?: string[];
   source?: string;
   status: RecipeStatus;
   isFavorite: boolean;
@@ -50,6 +51,7 @@ export async function getRecipes(): Promise<Recipe[]> {
     description: r.description || "",
     ingredients: (r.ingredients as unknown as Ingredient[]) || [],
     instructions: r.instructions || "",
+    tools: (r.tools as unknown as string[]) || [],
     source: r.source || undefined,
     status: (r.status as RecipeStatus) || "nova",
     isFavorite: r.is_favorite ?? false,
@@ -68,6 +70,7 @@ export async function saveRecipe(recipe: Omit<Recipe, "id">) {
     description: recipe.description,
     ingredients: recipe.ingredients.map(ing => ({ ...ing, name: capitalize(ing.name) })) as unknown as Json,
     instructions: recipe.instructions,
+    tools: (recipe.tools || []) as unknown as Json,
     source: recipe.source || null,
     status: recipe.status,
     is_favorite: recipe.isFavorite || false,
@@ -78,11 +81,12 @@ export async function saveRecipe(recipe: Omit<Recipe, "id">) {
 }
 
 export async function updateRecipe(recipe: Partial<Recipe> & { id: string }) {
-  const updateData: any = {};
+  const updateData: Partial<Tables<"recipes">> = {};
   if (recipe.title !== undefined) updateData.title = recipe.title;
   if (recipe.description !== undefined) updateData.description = recipe.description;
   if (recipe.ingredients !== undefined) updateData.ingredients = recipe.ingredients as unknown as Json;
   if (recipe.instructions !== undefined) updateData.instructions = recipe.instructions;
+  if (recipe.tools !== undefined) updateData.tools = recipe.tools as unknown as Json;
   if (recipe.source !== undefined) updateData.source = recipe.source || null;
   if (recipe.status !== undefined) updateData.status = recipe.status;
   if (recipe.isFavorite !== undefined) updateData.is_favorite = recipe.isFavorite;
@@ -161,7 +165,7 @@ export async function removePantryItem(id: string) {
 }
 
 export async function updatePantryItemDb(item: Partial<PantryItem> & { id: string }) {
-  const updateData: any = {};
+  const updateData: Partial<Tables<"pantry_items">> = {};
   if (item.name !== undefined) updateData.name = capitalize(item.name);
   if (item.quantity !== undefined) updateData.quantity = item.quantity || null;
   if (item.numericValue !== undefined) updateData.numeric_value = item.numericValue ?? null;
@@ -254,15 +258,13 @@ export async function unreserveIngredients(recipe: Recipe) {
 }
 
 export async function completeRecipe(recipe: Recipe): Promise<{ success: boolean; missing: string[] }> {
-  const pantry = await getPantry();
-  const missing: string[] = [];
-
   if (recipe.status === "reservada") {
     await unreserveIngredients(recipe);
   }
 
   // Re-fetch after unreserve
   const freshPantry = await getPantry();
+  const missing: string[] = [];
 
   for (const ing of recipe.ingredients) {
     const pantryItem = findPantryMatch(ing.name, freshPantry);

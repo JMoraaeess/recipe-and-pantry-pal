@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { getRecipes, getPantry, checkIngredients, addPantryItem, type Recipe, type PantryItem } from "@/lib/supabaseStore";
-import { ShoppingCart, CheckCircle2, User, Plus, Trash2, Check, X, Search, ChevronRight, ChefHat } from "lucide-react";
+import { ShoppingCart, CheckCircle2, User, Plus, Trash2, Check, X, Search, ChevronRight, ChefHat, ScanBarcode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { Html5Qrcode } from "html5-qrcode";
+import { useRef } from "react";
 import { IngredientIcon } from "@/components/IngredientIcon";
 import { capitalize } from "@/lib/utils";
 import {
@@ -15,6 +17,14 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+interface CustomItem {
+  id: string;
+  name: string;
+  quantity: string;
+  expiryDate?: string;
+  checked: boolean;
+}
+
 export default function ShoppingList() {
   const { toast } = useToast();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -24,7 +34,7 @@ export default function ShoppingList() {
   const [searchTerm, setSearchTerm] = useState("");
   
   // Custom list state
-  const [customItems, setCustomItems] = useState<{ id: string; name: string; quantity: string; expiryDate?: string; checked: boolean }[]>(() => {
+  const [customItems, setCustomItems] = useState<CustomItem[]>(() => {
     const saved = localStorage.getItem("custom_shopping_list");
     return saved ? JSON.parse(saved) : [];
   });
@@ -32,6 +42,57 @@ export default function ShoppingList() {
   const [manualName, setManualName] = useState("");
   const [manualQty, setManualQty] = useState("");
   const [manualExpiry, setManualExpiry] = useState("");
+  const [showScanner, setShowScanner] = useState(false);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+
+  const startScanner = async () => {
+    setShowScanner(true);
+    setTimeout(async () => {
+      try {
+        const html5QrCode = new Html5Qrcode("barcode-scanner-shopping");
+        scannerRef.current = html5QrCode;
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 250, height: 150 } },
+          (decodedText) => {
+            stopScanner();
+            lookupBarcode(decodedText);
+          },
+          () => {}
+        );
+      } catch (err) {
+        toast({ title: "Erro na câmera", variant: "destructive" });
+        setShowScanner(false);
+      }
+    }, 100);
+  };
+
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+        scannerRef.current = null;
+      } catch (e) {}
+    }
+    setShowScanner(false);
+  };
+
+  const lookupBarcode = async (barcode: string) => {
+    toast({ title: "Buscando...", description: barcode });
+    try {
+      const resp = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+      const data = await resp.json();
+      if (data.status === 1) {
+        setManualName(data.product.product_name_pt || data.product.product_name || "");
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) scannerRef.current.stop().catch(() => {});
+    };
+  }, []);
 
   // Dialog state for adding to pantry
   const [addingItem, setAddingItem] = useState<{ id: string; name: string; quantity: string } | null>(null);
@@ -62,7 +123,7 @@ export default function ShoppingList() {
 
   const handleSplitIngredient = (name: string): string[] => {
     // Handle parentheses patterns like "Ingrediente (ou opção genérica)"
-    let cleanedName = name.replace(/\s*\(\s*ou\s+([^)]*)\)/i, (match, p1) => {
+    const cleanedName = name.replace(/\s*\(\s*ou\s+([^)]*)\)/i, (_match, p1) => {
       const genericKeywords = ["outro", "outra", "preferencia", "gosto", "qualquer", "opcional", "preferência"];
       const isGeneric = genericKeywords.some(k => p1.toLowerCase().includes(k)) || p1.length > 30;
       return isGeneric ? "" : ` ou ${p1}`;
@@ -92,7 +153,7 @@ export default function ShoppingList() {
       return;
     }
 
-    const newItems: any[] = [];
+    const newItems: CustomItem[] = [];
     missing.forEach(ing => {
       const names = handleSplitIngredient(ing.name);
       names.forEach(name => {
@@ -113,7 +174,7 @@ export default function ShoppingList() {
   const addAllReservedToCustom = () => {
     const reservedRecipes = recipes.filter(r => r.status === "reservada");
     let addedCount = 0;
-    const newItems: { id: string; name: string; quantity: string; checked: boolean }[] = [];
+    const newItems: CustomItem[] = [];
 
     reservedRecipes.forEach(recipe => {
       const checked = checkIngredients(recipe.ingredients, pantry);
@@ -166,7 +227,7 @@ export default function ShoppingList() {
     ));
   };
 
-  const handleItemClick = (item: { id: string; name: string; quantity: string; expiryDate?: string; checked: boolean }) => {
+  const handleItemClick = (item: CustomItem) => {
     if (item.checked) {
       toggleCustomItem(item.id);
     } else {
@@ -190,7 +251,8 @@ export default function ShoppingList() {
       await addPantryItem({
         name: addingItem.name,
         quantity: purchaseQuantity?.trim() || undefined,
-        expiryDate: purchaseExpiry || undefined
+        expiryDate: purchaseExpiry || undefined,
+        category: "Mercearia"
       });
       setCustomItems(customItems.map(item => 
         item.id === addingItem.id ? { ...item, checked: true } : item
@@ -358,7 +420,7 @@ export default function ShoppingList() {
                     onClick={() => removeCustomItem(item.id)}
                     className="p-2 text-muted-foreground hover:text-destructive transition-colors"
                   >
-                    <X className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               ))}
@@ -422,13 +484,32 @@ export default function ShoppingList() {
             <DialogTitle>Novo Item na Lista</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {showScanner ? (
+              <div className="bg-muted rounded-xl p-2 relative overflow-hidden">
+                <Button variant="ghost" size="icon" className="absolute top-1 right-1 z-10 h-8 w-8" onClick={stopScanner}>
+                  <X className="h-4 w-4" />
+                </Button>
+                <div id="barcode-scanner-shopping" className="w-full aspect-video rounded-lg overflow-hidden bg-black">
+                </div>
+              </div>
+            ) : (
+              <Button 
+                variant="outline" 
+                onClick={startScanner}
+                className="w-full border-dashed border-primary/40 hover:bg-primary/5 h-12 gap-2"
+              >
+                <ScanBarcode className="h-4 w-4 text-primary" />
+                Escanear Código de Barras
+              </Button>
+            )}
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Nome do Produto <span className="text-destructive">*</span></label>
               <Input 
                 value={manualName} 
                 onChange={(e) => setManualName(e.target.value)} 
                 placeholder="Ex: Arroz, Ovos, Detergente..." 
-                autoFocus
+                autoFocus={!showScanner}
               />
             </div>
             <div className="space-y-2">

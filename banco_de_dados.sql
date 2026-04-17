@@ -36,6 +36,7 @@ CREATE TABLE public.recipes (
   instructions TEXT DEFAULT '',
   source TEXT,
   status TEXT NOT NULL DEFAULT 'nova',
+  category TEXT DEFAULT 'Salgados',
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   is_favorite BOOLEAN DEFAULT FALSE
 );
@@ -53,6 +54,7 @@ CREATE TABLE public.pantry_items (
   quantity TEXT,
   numeric_value DOUBLE PRECISION,
   unit TEXT,
+  category TEXT DEFAULT 'Mercearia',
   reserved_value DOUBLE PRECISION DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   expiry_date DATE
@@ -62,3 +64,4 @@ CREATE POLICY "Users can view own pantry" ON public.pantry_items FOR SELECT TO a
 CREATE POLICY "Users can insert own pantry" ON public.pantry_items FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own pantry" ON public.pantry_items FOR UPDATE TO authenticated USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own pantry" ON public.pantry_items FOR DELETE TO authenticated USING (auth.uid() = user_id);
+

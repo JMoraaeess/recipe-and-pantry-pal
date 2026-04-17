@@ -1,49 +1,15 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Hook para buscar o nome do ícone Lucide para um ingrediente via Gemini AI.
- * Fluxo: Cache Local (localStorage) -> Gemini AI (get-emoji Edge Function)
+ * Hook para buscar o ícone de um ingrediente.
+ * Retorna sempre o ícone padrão de garfo e faca cruzados, conforme solicitado.
  */
-export function useIngredientIcon(name: string) {
-  const [iconName, setIconName] = useState<string>("ChefHat");
+export function useIngredientIcon(_name: string) {
+  const [iconName, setIconName] = useState<string>("🍽️");
 
   useEffect(() => {
-    if (!name) return;
-
-    // 1. Cache local
-    const cacheKey = `icon-ai-${name.toLowerCase().trim()}`;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      setIconName(cached);
-      return;
-    }
-
-    // 2. Buscar na IA em background
-    if (!navigator.onLine) return;
-
-    let isMounted = true;
-    const fetchAI = async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke("get-emoji", {
-          body: { ingredient: name },
-        });
-
-        if (error) throw error;
-
-        const icon = data?.icon || "ChefHat";
-        if (isMounted) {
-          setIconName(icon);
-          localStorage.setItem(cacheKey, icon);
-        }
-      } catch (err) {
-        console.warn("Falha ao buscar ícone para:", name, err);
-      }
-    };
-
-    fetchAI();
-    return () => { isMounted = false; };
-  }, [name]);
+    setIconName("🍽️");
+  }, [_name]);
 
   return iconName;
 }

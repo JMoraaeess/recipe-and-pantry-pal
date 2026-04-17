@@ -12,7 +12,8 @@ import {
   ArrowLeft,
   BookOpen,
   ShoppingCart,
-  Apple
+  Apple,
+  Star
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -91,6 +92,26 @@ export default function Profile() {
           </div>
           <h2 className="text-xl font-bold text-foreground">{displayName}</h2>
           <p className="text-sm text-muted-foreground">{email}</p>
+        </div>
+
+        {/* PRO Banner */}
+        <div className="mt-6 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden group">
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-2">
+              <Star className="h-4 w-4 fill-current" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Plano Premium</span>
+            </div>
+            <h3 className="text-lg font-black leading-tight">Mude para o PRO e <br />libere todo o potencial</h3>
+            <ul className="mt-3 space-y-1 text-xs font-medium opacity-90">
+              <li className="flex items-center gap-2">✓ Extração de IA Ilimitada</li>
+              <li className="flex items-center gap-2">✓ Sem anúncios em vídeo</li>
+              <li className="flex items-center gap-2">✓ Análise Nutricional Completa</li>
+            </ul>
+            <Button className="w-full mt-4 bg-white text-amber-600 hover:bg-white/90 font-bold rounded-xl shadow-md border-none">
+              Quero ser PRO
+            </Button>
+          </div>
+          <ChefHat className="absolute -right-4 -bottom-4 h-32 w-32 opacity-10 rotate-12 group-hover:scale-110 transition-transform" />
         </div>
 
         {/* Dashboard Stats */}

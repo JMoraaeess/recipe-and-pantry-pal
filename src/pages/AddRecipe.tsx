@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { saveRecipe, type Ingredient } from "@/lib/supabaseStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, X, Link, Loader2, Camera, Image as ImageIcon } from "lucide-react";
+import { Plus, X, Link, Loader2, Mic, MicOff, Play, ClipboardText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -20,7 +20,47 @@ export default function AddRecipe() {
   const [importing, setImporting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [category, setCategory] = useState("Salgados");
-  const [importMode, setImportMode] = useState<"url" | "image">("url");
+  const [importMode, setImportMode] = useState<"url" | "voice" | "paste">("url");
+  const [pasteText, setPasteText] = useState("");
+  const [isListening, setIsListening] = useState(false);
+
+  // Capturar compartilhamento do YouTube/Browser (Web Share Target)
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const sharedText = searchParams.get("text") || "";
+    const sharedUrl = searchParams.get("url") || "";
+    const sharedTitle = searchParams.get("title") || "";
+    
+    const combined = `${sharedText} ${sharedUrl} ${sharedTitle}`;
+    const foundUrl = combined.match(/(https?:\/\/[^\s]+)/)?.[0];
+
+    if (foundUrl) {
+      setUrlInput(foundUrl);
+      toast({
+        title: "Link Recebido",
+        description: "Estamos processando a receita compartilhada...",
+      });
+      autoImport(foundUrl);
+    }
+  }, [searchParams]);
+
+  const autoImport = async (url: string) => {
+    setImporting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("extract-recipe", {
+        body: { url: url.trim() },
+      });
+      if (data?.recipe && !error) {
+        setSource(url.trim());
+      }
+      handleImportResult(data, error);
+    } catch (err: unknown) {
+      handleImportError(err);
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const addIngredient = () => setIngredients([...ingredients, { name: "", quantity: "" }]);
   const removeIngredient = (index: number) => setIngredients(ingredients.filter((_, i) => i !== index));
@@ -34,8 +74,31 @@ export default function AddRecipe() {
     if (!urlInput.trim()) return;
     setImporting(true);
     try {
+      let htmlContent = "";
+      
+      // Se for YouTube, tentar ler via Proxy cliente para evitar CAPTCHA do servidor
+      if (urlInput.includes("youtube.com") || urlInput.includes("youtu.be")) {
+        try {
+          // Codetabs é mais rápido e limpo que AllOrigins para YouTube
+          const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(urlInput + "&hl=pt&gl=BR")}`;
+          const res = await fetch(proxyUrl);
+          const rawHtml = await res.text();
+          
+          if (rawHtml.length > 1000) {
+             const titleMatch = rawHtml.match(/<title>([^<]+)<\/title>/);
+             const title = titleMatch ? titleMatch[1] : "";
+             const descMatch = rawHtml.match(/"shortDescription":"([^"]+)"/) || rawHtml.match(/"description":\{"simpleText":"([^"]+)"\}/);
+             const description = descMatch ? descMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"') : "";
+             
+             htmlContent = `TÍTULO: ${title}\nDESCRIÇÃO: ${description}\nHTML: ${rawHtml.slice(0, 5000)}`;
+          }
+        } catch (e) {
+          console.error("Client proxy failed:", e);
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke("extract-recipe", {
-        body: { url: urlInput.trim() },
+        body: { url: urlInput.trim(), text: htmlContent },
       });
       if (data?.recipe && !error) {
         setSource(urlInput.trim());
@@ -48,66 +111,42 @@ export default function AddRecipe() {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setImporting(true);
-    try {
-      // Optimização da imagem antes de enviar (redimensionar e comprimir)
-      const optimizeImage = (file: File): Promise<string> => {
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-              const canvas = document.createElement("canvas");
-              let width = img.width;
-              let height = img.height;
-              const maxSize = 1024; // Máximo de 1024px para não estourar o limite de tamanho
-
-              if (width > height) {
-                if (width > maxSize) {
-                  height *= maxSize / width;
-                  width = maxSize;
-                }
-              } else {
-                if (height > maxSize) {
-                  width *= maxSize / height;
-                  height = maxSize;
-                }
-              }
-
-              canvas.width = width;
-              canvas.height = height;
-              const ctx = canvas.getContext("2d");
-              ctx?.drawImage(img, 0, 0, width, height);
-              resolve(canvas.toDataURL("image/jpeg", 0.7));
-            };
-            img.src = e.target?.result as string;
-          };
-          reader.readAsDataURL(file);
-        });
-      };
-
-      const base64 = await optimizeImage(file);
-
-      const { data, error } = await supabase.functions.invoke("extract-recipe", {
-        body: { image: base64 },
-      });
-      
-      if (data?.recipe && !error) {
-        setSource("Importado via Foto");
-      }
-      
-      handleImportResult(data, error);
-    } catch (err: unknown) {
-      handleImportError(err);
-    } finally {
-      setImporting(false);
-      // Reset input
-      e.target.value = "";
+  const handleVoiceCommand = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast({ title: "Não suportado", description: "Seu navegador não suporta comandos de voz.", variant: "destructive" });
+      return;
     }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "pt-BR";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
+
+    recognition.onresult = async (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      console.log("Comando de voz:", transcript);
+      
+      toast({ title: "Buscando receita...", description: `Pesquisando por: "${transcript}"` });
+      
+      setImporting(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("extract-recipe", {
+          body: { search: transcript },
+        });
+        handleImportResult(data, error);
+      } catch (err) {
+        handleImportError(err);
+      } finally {
+        setImporting(false);
+      }
+    };
+
+    recognition.start();
   };
 
   const handleImportResult = (data: any, error: any) => {
@@ -142,7 +181,11 @@ export default function AddRecipe() {
       setTitle(recipe.title || "");
       setDescription(recipe.description || "");
       setCategory(recipe.category || "Salgados");
-      setInstructions((recipe.instructions || "").replace(/\\n/g, "\n"));
+      // Garantir que instruções seja sempre uma string, mesmo que venha como array
+      let inst = recipe.instructions || "";
+      if (Array.isArray(inst)) inst = inst.join("\n");
+      setInstructions(String(inst).replace(/\\n/g, "\n"));
+      
       setIngredients(recipe.ingredients?.length
         ? recipe.ingredients.map((i: any) => ({ name: i.name || "", quantity: i.quantity || "" }))
         : [{ name: "", quantity: "" }]);
@@ -154,11 +197,16 @@ export default function AddRecipe() {
     }
   };
 
-  const handleImportError = (err: unknown) => {
+  const handleImportError = (err: any) => {
     console.error("Import exception:", err);
+    let errorMsg = "Houve um erro ao processar sua solicitação.";
+    
+    // Tentar extrair a mensagem de erro real vinda do Supabase Function
+    if (err?.message) errorMsg = err.message;
+    
     toast({ 
-      title: "Erro na IA", 
-      description: "Houve um erro ao processar sua solicitação. Tente novamente.", 
+      title: "Erro na Importação", 
+      description: errorMsg, 
       variant: "destructive" 
     });
   };
@@ -199,53 +247,89 @@ export default function AddRecipe() {
 
       <div className="px-5 mb-6">
         <div className="bg-card rounded-xl p-5 border border-border shadow-sm">
-          <div className="flex gap-4 mb-4">
-            <button
+          <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
+            <Button
+              variant={importMode === "url" ? "default" : "outline"}
+              size="sm"
               onClick={() => setImportMode("url")}
-              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${importMode === "url" ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+              className="rounded-full gap-2 shrink-0"
             >
               <Link className="h-4 w-4" /> Link/Vídeo
-            </button>
-            <button
-              onClick={() => setImportMode("image")}
-              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${importMode === "image" ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+            </Button>
+            <Button
+              variant={importMode === "voice" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setImportMode("voice")}
+              className="rounded-full gap-2 shrink-0"
             >
-              <Camera className="h-4 w-4" /> Foto ou Print
-            </button>
+              <Mic className="h-4 w-4" /> Voz
+            </Button>
+            <Button
+              variant={importMode === "paste" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setImportMode("paste")}
+              className="rounded-full gap-2 shrink-0"
+            >
+              <ClipboardText className="h-4 w-4" /> Colar Texto
+            </Button>
           </div>
 
-          {importMode === "url" ? (
+          {importMode === "url" && (
             <div className="space-y-3">
               <div className="flex gap-2">
-                <Input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="Cole o link do YouTube ou site" disabled={importing} className="bg-background" />
-                <Button type="button" onClick={handleImportUrl} disabled={importing || !urlInput.trim()} className="shrink-0 bg-primary hover:bg-primary/90">
-                  {importing ? <Loader2 className="h-4 w-4 animate-spin text-white" /> : "Importar"}
+                <Input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="Cole o link do YouTube" disabled={importing} className="bg-background" />
+                <Button type="button" onClick={handleImportUrl} disabled={importing || !urlInput.trim()} className="shrink-0">
+                  {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Extrair"}
                 </Button>
               </div>
-              <p className="text-[11px] text-muted-foreground text-center">A IA extrai a receita do link automaticamente</p>
             </div>
-          ) : (
+          )}
+
+          {importMode === "paste" && (
             <div className="space-y-3">
-              <input type="file" id="recipe-photo" accept="image/*" className="hidden" onChange={handleFileUpload} disabled={importing} />
-              <label 
-                htmlFor="recipe-photo" 
-                className={`w-full py-6 border-2 border-dashed border-primary/30 rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-primary/5 transition-all ${importing ? "opacity-50 pointer-events-none" : ""}`}
+              <Textarea 
+                placeholder="Cole aqui o texto da receita (Ingredientes, Modo de Preparo...)" 
+                className="min-h-[120px] bg-background text-sm"
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                disabled={importing}
+              />
+              <Button type="button" onClick={handleImportPaste} disabled={importing || !pasteText.trim()} className="w-full">
+                {importing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+                Processar com IA
+              </Button>
+            </div>
+          )}
+
+          {importMode === "voice" && (
+            <div className="space-y-3">
+              <button 
+                type="button"
+                onClick={handleVoiceCommand}
+                disabled={importing}
+                className={`w-full py-6 border-2 border-dashed border-primary/30 rounded-xl flex flex-col items-center justify-center gap-2 transition-all ${importing ? "opacity-50 pointer-events-none" : "hover:bg-primary/5"}`}
               >
                 {importing ? (
                   <>
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <span className="text-sm font-medium text-primary">IA analisando sua foto...</span>
+                    <span className="text-sm font-medium text-primary">Processando...</span>
+                  </>
+                ) : isListening ? (
+                  <>
+                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center animate-pulse">
+                      <MicOff className="h-6 w-6 text-red-600" />
+                    </div>
+                    <span className="text-sm font-medium text-red-600">Ouvindo... Pode falar!</span>
                   </>
                 ) : (
                   <>
                     <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <ImageIcon className="h-6 w-6 text-primary" />
+                      <Mic className="h-6 w-6 text-primary" />
                     </div>
-                    <span className="text-sm font-medium">Tirar Foto ou Escolher Print</span>
-                    <span className="text-[10px] text-muted-foreground">Extrai texto e contexto da imagem</span>
+                    <span className="text-sm font-medium">Toque para falar</span>
                   </>
                 )}
-              </label>
+              </button>
             </div>
           )}
         </div>
