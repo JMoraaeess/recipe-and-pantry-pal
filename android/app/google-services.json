@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "103657070291",
+    "project_id": "meu-cozinheiro",
+    "storage_bucket": "meu-cozinheiro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:103657070291:android:f6c5af5bd86689db47fe26",
+        "android_client_info": {
+          "package_name": "com.antigravity.recipe_pantry_mobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "103657070291-7d0hdmu1vvpp8g8gl4iait5mgiaoj1li.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.antigravity.recipe_pantry_mobile",
+            "certificate_hash": "da8dde9822295c1657a028ca5b75b6fd684537de"
+          }
+        },
+        {
+          "client_id": "103657070291-r8ptgah7o2o4g43fkpb1ishops0utghp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBqQiDPAbrcYklGRhh3TMQgzy-4nuPVnEQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "103657070291-r8ptgah7o2o4g43fkpb1ishops0utghp.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "103657070291-jtt0q5lqbm2ecj6cvqdd7r0h3gruosvp.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.antigravity.recipePantryMobile"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
